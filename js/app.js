@@ -26,38 +26,33 @@ var ExplorerApp = Backbone.View.extend({
 	  if (outputSelection == 'display') {
 		  var queryMap = { 'query': queryDisplayValue, 'endpoint': uriStr};
 	   	  var self = this;
+		  $('.splashScreenExplorer').show();
 		  $.post("makeRequest.php", queryMap, function(data){
-			// small script force converting sparql-xml to json (should be done on the server side)
-			var baseDoc = data;
-			if ($.browser.mozilla) {
-				baseVars = $(baseDoc).find("variable");
-				baseResults = $(baseDoc).find("result");
-			} else {
-				baseVars = $(baseDoc).find("variable");
-				baseResults = $(baseDoc).find("result");
-			}
-			var sparqlVariables = [];
-	 		$.each (baseVars, function(key, val){
-				if($(val).attr('name') != null) {
-					var variable = $(val).attr('name');
-					sparqlVariables.push(variable);
-				}
-			});
-			var parsedCounter = false;
-			var results = [];
-			var constBinding = [];
-			for(var i = 0; i < baseResults.length; i ++){
-				if(typeof baseResults[i] !== "undefined"){
-					for(var j = 0 ; j < baseResults[i].children.length; j ++){
-						var binding = baseResults[i].children[j];
-						console.log($(binding));
-					}
-				}
-				
-			}
-			//console.log(bindings);
-			//console.log(sparqlVariables);
-	          });  
+			// small function force converting sparql-xml to json (should be done on the server side)
+			// this is not required when the SPARQL Engine exposes ReVeaLD as a service (should use AJAX call below)
+			var jsonData = convertToJson(data);
+			// normal flow
+			$('.page-home').hide();
+	   	  //  	$('.page-visualizer').hide();
+	   	    	$('.splashScreenExplorer').hide();
+	   	    	$('.page-explorer').show();  	
+			
+	   	    	myRecords = loadDataSet(JSON.stringify(jsonData));
+	   	    	var dataset = new recline.Model.Dataset({
+	   	    		records: myRecords
+	   	    	});
+	   	    //	return dataset;
+	   	    	self.createExplorer(dataset);
+	   	    	replaceSemantics();			
+	          }).fail(function() {
+		   	$('.splashScreenExplorer').hide();
+			myRecords = [];
+	   	    	var dataset = new recline.Model.Dataset({
+	   	    		records: myRecords
+	   	    	});
+	   	    //	return dataset;
+	   	    	self.createExplorer(dataset);
+		  });  
 		// To be used if direct integration with the SPARQL Engine
 	   	 /* $.ajax({
 	   	    type : "POST",
@@ -432,8 +427,44 @@ function generateSMILES(query, results) {
 	}
 }
 
+function convertToJson(data) {
+	var baseDoc = data;
+	if ($.browser.mozilla) {
+		baseVars = $(baseDoc).find("variable");
+		baseResults = $(baseDoc).find("result");
+	} else {
+		baseVars = $(baseDoc).find("variable");
+		baseResults = $(baseDoc).find("result");
+	}
+	var sparqlVariables = [];
+	$.each (baseVars, function(key, val){
+		if($(val).attr('name') != null) {
+			var variable = $(val).attr('name');
+			sparqlVariables.push(variable);
+		}
+	});
+	var parsedCounter = false;
+	var results = [];
+	for(var i = 0; i < baseResults.length; i ++){
+		if(typeof baseResults[i] !== "undefined"){
+			var constBinding = "{";
+			for(var j = 0 ; j < baseResults[i].children.length; j ++){
+				var binding = baseResults[i].children[j];
+				constBinding += "\"" + $(binding).attr('name') + "\": {\"type\": \"" + $(binding)[0].children[0].localName + "\", \"value\": \"" + $.trim($(binding)[0].innerText) + "\"}, ";
+			}
+			constBinding = constBinding.substring(0, constBinding.length-2) + "}";
+			//console.log(constBinding);
+			results.push(JSON.parse(constBinding));
+		}
+	}
+	var jsonData = {"head" : {"vars" : sparqlVariables}, "results" : {"bindings": results}};
+	console.log(jsonData);
+	return jsonData;
+}
+
 function loadDataSet(results) {
 //	alert(results);
+console.log(results);
 	var myObject = JSON.parse(results);
 	var transformedJS = "[ ";
 	for(i = 0; i < myObject.results.bindings.length; i ++) {
@@ -442,7 +473,7 @@ function loadDataSet(results) {
 		for(j = 0; j < myObject.head.vars.length; j ++) {
 			transformedJS += "\"" +myObject.head.vars[j] + "\": ";
 			var binding = myObject.results.bindings[i];
-		//	console.log(binding);
+			//console.log(binding);
 			var mainVariable = binding[myObject.head.vars[j]].value;
 			if($.isNumeric(binding[myObject.head.vars[j]].value))
 				transformedJS += binding[myObject.head.vars[j]].value + ", ";
@@ -812,21 +843,3 @@ function renderInfo(resource, category, resourceTitle) {
  	}) 
 }
 
-function renderFolderList(){
-	var folderId = allQueryParams.folderId;
-	if((storage.getItem('folderList') != null && storage.getItem('folderList') != '')) {
-		var sortedFolders = JSON.parse(storage.getItem('folderList')).folder;
-	//	console.log(sortedFolders);
-		var folderinList = false;
-		for(i in sortedFolders){
-			if(sortedFolders[i].resourceID == folderId)
-				folderinList = true;
-			$('#resfolderSelMeta').append('<option value="'+sortedFolders[i].resourceID+'"' +((folderId == sortedFolders[i].resourceID) ? ' selected': '' )+'>' + sortedFolders[i].name + '</option>');
-		}
-		if(!folderinList)
-			$('#resfolderSelMeta').prepend('<option value="' + userResourceID + '" selected>' + userName + '</option>');
-		else
-			$('#resfolderSelMeta').prepend('<option value="' + userResourceID + '">' + userName + '</option>');
-		$("#resfolderSelMeta").show();
-	} 
-}

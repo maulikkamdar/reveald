@@ -453,7 +453,8 @@ function convertToJson(data) {
 				constBinding += "\"" + $(binding).attr('name') + "\": {\"type\": \"" + $(binding)[0].children[0].localName + "\", \"value\": \"" + $.trim($(binding)[0].innerText) + "\"}, ";
 			}
 			constBinding = constBinding.substring(0, constBinding.length-2) + "}";
-			//console.log(constBinding);
+			constBinding = constBinding.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '') ;
+			console.log(constBinding);
 			results.push(JSON.parse(constBinding));
 		}
 	}
@@ -463,8 +464,6 @@ function convertToJson(data) {
 }
 
 function loadDataSet(results) {
-//	alert(results);
-console.log(results);
 	var myObject = JSON.parse(results);
 	var transformedJS = "[ ";
 	for(i = 0; i < myObject.results.bindings.length; i ++) {
@@ -713,21 +712,6 @@ function popUpInfo(resource) {
 	}
 	
 	renderInfo(resource, "default");
-/*	$.ajax({
-		url: "https://maulikkamdar.cloudant.com/biologicaltitlecorpus/_design/alltitles/_search/titles?stale=ok&q=entityId:\"http://"+resource+"\"",
-		dataType: "jsonp",
-		beforeSend : function(data){
-	 	    	$('.splashScreenExplorer').show();
-	 	},
-		success: function( data ) {
-			if(data.total_rows > 0){
-				var type = data.rows[0].fields.entity;
-				renderInfo(resource, type);
-			} else {
-				renderInfo(resource, "default");
-			}
-		}
-	});	*/
 }
 
 function renderInfo(resource, category, resourceTitle) {
@@ -748,14 +732,14 @@ function renderInfo(resource, category, resourceTitle) {
 		 */
 		var additionalQuery = "PREFIX granatum: <http://chem.deri.ie/granatum/>" +
 		"SELECT ?mol ?mol_title ?score ?type ?value ?measure WHERE {" +
-    	"<http://"+ resource +"> granatum:hasResult ?res ." +
-    	"?res granatum:mentionMolecule ?mol ." +
-    	"?mol granatum:title ?mol_title ." +
-    	"?res granatum:outcomeScore ?score ." +
-    	"?res granatum:outcomeType ?type ." +
-    	"OPTIONAL {?res granatum:outcomeMeasure ?measure ." +
-    	"?res granatum:outcomeValue ?value}" +
-		"} LIMIT 1000";
+	    	"<http://"+ resource +"> granatum:hasResult ?res ." +
+	    	"?res granatum:mentionMolecule ?mol ." +
+	    	"?mol granatum:title ?mol_title ." +
+	    	"?res granatum:outcomeScore ?score ." +
+	    	"?res granatum:outcomeType ?type ." +
+	    	"OPTIONAL {?res granatum:outcomeMeasure ?measure ." +
+	    	"?res granatum:outcomeValue ?value}" +
+			"} LIMIT 1000";
 	} else if (category == "MolResult"){
 		/*
 		 *  PREFIX granatum: <http://chem.deri.ie/granatum/>
@@ -771,14 +755,14 @@ function renderInfo(resource, category, resourceTitle) {
 		 */
 		var additionalQuery = "PREFIX granatum: <http://chem.deri.ie/granatum/>" +
 		"SELECT ?mol ?mol_title ?score ?type ?value ?measure WHERE {" +
-    	"?mol granatum:hasResult ?res ." +
-    	"?res granatum:mentionMolecule <http://"+ resource +"> ." +
-    	"?mol granatum:title ?mol_title ." +
-    	"?res granatum:outcomeScore ?score ." +
-    	"?res granatum:outcomeType ?type ." +
-    	"OPTIONAL {?res granatum:outcomeMeasure ?measure ." +
-    	"?res granatum:outcomeValue ?value}" +
-		"} LIMIT 1000";
+	    	"?mol granatum:hasResult ?res ." +
+	    	"?res granatum:mentionMolecule <http://"+ resource +"> ." +
+	    	"?mol granatum:title ?mol_title ." +
+	    	"?res granatum:outcomeScore ?score ." +
+	    	"?res granatum:outcomeType ?type ." +
+	    	"OPTIONAL {?res granatum:outcomeMeasure ?measure ." +
+	    	"?res granatum:outcomeValue ?value}" +
+			"} LIMIT 1000";
 	} else if (category == "MolLiterature"){
 		var additionalQuery = "PREFIX granatum_onto: <http://granatum.ubitech.eu/CancerChemopreventionOntology.owl#>" +
 				"SELECT DISTINCT * WHERE {" +
@@ -788,11 +772,59 @@ function renderInfo(resource, category, resourceTitle) {
 				"} LIMIT 100";
 	} else {
 		var additionalQuery = "SELECT * WHERE { " +
-    	"<http://"+ resource +"> ?p ?o . " +
+    			"<http://"+ resource +"> ?p ?o . " +
 		"} LIMIT 100";
 	}
   
-	var queryMap = { 'query': additionalQuery,	'output' : 'json' }
+	var queryMap = { 'query': additionalQuery, 'output' : 'json', 'endpoint': uriStr};
+	$('.splashScreenExplorer').show();
+	$.post("makeRequest.php", queryMap, function(xmldata){
+		// small function force converting sparql-xml to json (should be done on the server side)
+		// this is not required when the SPARQL Engine exposes ReVeaLD as a service (should use AJAX call below)
+		var data = convertToJson(xmldata);
+		
+		$modal.modal('show');
+ 	    	if(category == "AssayResult") {
+ 	    	//	console.log(data.results.bindings);
+ 	    		renderBarChart(data.results.bindings, resource);
+ 	    	} else if (category == "MolResult") {
+ 	    		renderBarChart(data.results.bindings, resource);
+ 	    	} else if (category == "MolLiterature") {
+ 	    		var infoTokenArray = [];
+ 	 	    	for(delta in data.results.bindings){
+ 	 	    		var binding = data.results.bindings[delta];
+ 	 	    		var predicateTerms = binding["s"].value.split(/[:#\/]/);
+ 	 	    		var predicateTerm = predicateTerms[predicateTerms.length-1];
+ 	 	    		var objectTerm = binding["o"].value;
+ 	 	    		infoToken = {predicate : predicateTerm, object : objectTerm};
+ 	 	    		infoTokenArray.push(infoToken);
+ 	 	    	}
+ 	 	    	console.log(infoTokenArray);
+ 	    		renderLiterature(infoTokenArray, resource, resourceTitle);
+ 	    	} else {
+ 	    		var infoTokenArray = [];
+ 	 	    	var label = "";
+ 	 	    	var image = "";
+ 	 	    	for(delta in data.results.bindings){
+ 	 	    		var binding = data.results.bindings[delta];
+ 	 	    		var predicateTerms = binding["p"].value.split(/[:#\/]/);
+ 	 	    		var predicateTerm = predicateTerms[predicateTerms.length-1];
+ 	 	    		var objectTerm = binding["o"].value;
+ 	 	    	//	alert(predicateTerm);
+ 	 	    		if(predicateTerm == "title" || predicateTerm == "label")
+ 	 	    			label = objectTerm;
+ 	 	    		if(predicateTerm == "thumbnail" || predicateTerm == "image")
+ 	 	    			image = objectTerm;
+ 	 	    		infoToken = {predicate : predicateTerm, object : objectTerm};
+ 	 	    		infoTokenArray.push(infoToken);
+ 	 	    	}
+ 	 	    	renderPopUp(infoTokenArray,label,image,resource);
+ 	    	}
+   	}).fail(function() {
+	   	$('.splashScreenExplorer').hide();
+	});  
+	// To be used if direct integration with the SPARQL Engine
+/*
  	$.ajax({
  	    type : "GET",
  	    url : uriStr + "sparql",
@@ -840,6 +872,6 @@ function renderInfo(resource, category, resourceTitle) {
  	 	    	renderPopUp(infoTokenArray,label,image,resource);
  	    	}
  	    }
- 	}) 
+ 	}) */
 }
 

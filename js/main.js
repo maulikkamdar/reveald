@@ -137,16 +137,7 @@ function renderPopUp(json,label,image,resource){
 								"</textarea>" +
 								"<a href='"+d.object+"' target='_blank'>Download Structure File</a>";
 				structure = true;
-				if(d.object.indexOf("pubchem") > -1) {
-					var structureFrags = d.object.split('=');
-					structureFile = structureFrags[1];
-					structureRepo = 'pubchem';
-				} else {
-					var structureFrags = d.object.split('/');
-					structureFile = structureFrags[structureFrags.length-1];
-					structureRepo = '';
-				}
-			//	structureFile = d.object;
+				structureFile = d.object;
 				break;
 			default : break;
 		}
@@ -156,14 +147,53 @@ function renderPopUp(json,label,image,resource){
 	});
 	
 	if(structure){
-		loadStructure(resourceTerm, structureFile, structureRepo);
+		loadStructure(resourceTerm, structureFile);
 	}
 	
 }
 
-function loadStructure(resourceTerm, structureFile, structureRepo){
+// Create the XHR object.
+function createCORSRequest(method, url) {
+  var xhr = new XMLHttpRequest();
+  if ("withCredentials" in xhr) {
+    // XHR for Chrome/Firefox/Opera/Safari.
+    xhr.open(method, url, true);
+  } else if (typeof XDomainRequest != "undefined") {
+    // XDomainRequest for IE.
+    xhr = new XDomainRequest();
+    xhr.open(method, url);
+  } else {
+    // CORS not supported.
+    xhr = null;
+  }
+  return xhr;
+}
+
+function makeCorsRequest(url, resourceTerm) {
+  var xhr = createCORSRequest('GET', url);
+  if (!xhr) {
+    console.log('CORS not supported');
+    return;
+  }
+
+  // Response handlers.
+  xhr.onload = function() {
+    var data = xhr.responseText;
+    $('#' + resourceTerm + 'sdf_src').val(data);
+    new GLmol(resourceTerm+'sdf');
+  };
+
+  xhr.onerror = function() {
+    console.log('Woops, there was an error making the request.');
+  };
+
+  xhr.send();
+}
+
+function loadStructure(resourceTerm, structureFile){
 	var sdf_source;
-	var structureURL = window.location.protocol + "//" + window.location.host + "/explorer/structure?id=" + structureFile + "&location=" + structureRepo ;
+        makeCorsRequest(structureFile, resourceTerm);
+        /*var structureURL = window.location.protocol + "//" + window.location.host + window.location.pathname + "crossDomFileRet.php?id=" + structureFile + "&location=" + structureRepo ;
 	$.ajax({
 		url: structureURL,
 		type: 'GET',
@@ -172,7 +202,7 @@ function loadStructure(resourceTerm, structureFile, structureRepo){
 		console.log(data);
 		$('#' + resourceTerm + 'sdf_src').val(data);
 		new GLmol(resourceTerm+'sdf');
-	});
+	});*/
 }
 
 function renderLiterature(data, resource, label) {

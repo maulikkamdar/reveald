@@ -436,6 +436,7 @@ function convertToJson(data) {
 		baseVars = $(baseDoc).find("variable");
 		baseResults = $(baseDoc).find("result");
 	}
+	console.log(baseResults);
 	var sparqlVariables = [];
 	$.each (baseVars, function(key, val){
 		if($(val).attr('name') != null) {
@@ -450,10 +451,11 @@ function convertToJson(data) {
 			var constBinding = "{";
 			for(var j = 0 ; j < baseResults[i].children.length; j ++){
 				var binding = baseResults[i].children[j];
-				constBinding += "\"" + $(binding).attr('name') + "\": {\"type\": \"" + $(binding)[0].children[0].localName + "\", \"value\": \"" + $.trim($(binding)[0].innerText) + "\"}, ";
+				constBinding += "\"" + $(binding).attr('name') + "\": {\"type\": \"" + $(binding)[0].children[0].localName + "\", \"value\": \"" + $.trim($(binding)[0].textContent) + "\"}, ";
 			}
 			constBinding = constBinding.substring(0, constBinding.length-2) + "}";
-			constBinding = constBinding.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '') ;
+			constBinding = constBinding.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\|\}\{\[\]`~]*/g, '') ;
+			constBinding = constBinding.replace(/[\\]/g, '\\\\');
 			console.log(constBinding);
 			results.push(JSON.parse(constBinding));
 		}
